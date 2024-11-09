@@ -1,0 +1,19 @@
+```json
+{
+  "name": "confluence-netlify-integration",
+  "version": "1.0.0",
+  "description": "Display Confluence content in Webflow via Netlify Functions",
+  "main": "index.js",
+  "scripts": {
+    "start": "netlify dev",
+    "build": "# Add build script if needed"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "netlify-cli": "^12.0.0"
+  }
+}
+```

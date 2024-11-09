@@ -2,15 +2,12 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 exports.handler = async function(event, context) {
-  // Set CORS headers to allow all origins for testing
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Content-Type': 'application/json'
+    'Access-Control-Allow-Methods': 'GET, OPTIONS'
   };
 
-  // Handle OPTIONS preflight request
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -20,58 +17,81 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // First, test if the function is being called
-    console.log('Function called');
-    console.log('Environment variables:', {
-      domain: process.env.CONFLUENCE_DOMAIN ? 'Set' : 'Not set',
-      email: process.env.CONFLUENCE_EMAIL ? 'Set' : 'Not set',
-      token: process.env.CONFLUENCE_API_TOKEN ? 'Set' : 'Not set',
-      pageId: process.env.CONFLUENCE_PAGE_ID ? 'Set' : 'Not set'
+    // Remove any https:// if it exists in the domain
+    const domain = process.env.CONFLUENCE_DOMAIN.replace('https://', '').replace('http://', '');
+    
+    // Log the configuration (excluding sensitive data)
+    console.log('Configuration:', {
+      domain: domain,
+      hasEmail: !!process.env.CONFLUENCE_EMAIL,
+      hasToken: !!process.env.CONFLUENCE_API_TOKEN,
+      pageId: process.env.CONFLUENCE_PAGE_ID
     });
 
-    // Basic authentication
     const auth = Buffer.from(
       `${process.env.CONFLUENCE_EMAIL}:${process.env.CONFLUENCE_API_TOKEN}`
     ).toString('base64');
 
-    // Log the URL being called (remove sensitive info)
-    console.log('Calling Confluence API at domain:', process.env.CONFLUENCE_DOMAIN);
+    const confluenceUrl = `https://${domain}/wiki/rest/api/content/${process.env.CONFLUENCE_PAGE_ID}?expand=body.storage`;
+    console.log('Requesting URL:', confluenceUrl);
 
     const response = await axios({
       method: 'get',
-      url: `https://${process.env.CONFLUENCE_DOMAIN}/wiki/rest/api/content/${process.env.CONFLUENCE_PAGE_ID}?expand=body.storage`,
+      url: confluenceUrl,
       headers: {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json'
       }
     });
 
-    // Log successful response
-    console.log('Confluence API response received');
+    // Transform content
+    const $ = cheerio.load(response.data.body.storage.value);
+    
+    // Add classes to elements
+    $('h1').addClass('confluence-h1');
+    $('h2').addClass('confluence-h2');
+    $('h3').addClass('confluence-h3');
+    $('p').addClass('confluence-paragraph');
+    $('ul').addClass('confluence-list');
+    $('ol').addClass('confluence-ordered-list');
+    $('li').addClass('confluence-list-item');
+    $('table').addClass('confluence-table');
+    $('th').addClass('confluence-table-header');
+    $('td').addClass('confluence-table-cell');
+    $('a').addClass('confluence-link');
+    $('img').addClass('confluence-image');
+
+    const transformedContent = `<div class="confluence-content-wrapper">${$.html()}</div>`;
 
     return {
       statusCode: 200,
-      headers,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
-        content: response.data.body.storage.value
+        content: transformedContent,
+        title: response.data.title
       })
     };
 
   } catch (error) {
-    // Detailed error logging
-    console.error('Error details:', {
+    console.error('Function error:', {
       message: error.message,
-      response: error.response?.data,
-      status: error.response?.status
+      stack: error.stack,
+      response: error.response?.data
     });
 
     return {
       statusCode: 500,
-      headers,
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         error: 'Error fetching content',
         message: error.message,
-        details: error.response?.data || 'No additional details available'
+        details: error.response?.data || error.stack || 'No additional details available'
       })
     };
   }

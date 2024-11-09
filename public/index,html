@@ -1,0 +1,89 @@
+```html
+
+
+
+    
+    
+    Confluence Content Viewer
+    
+        /* Base styles - these will be overridden by Webflow styles */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .content-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        
+        #confluence-content {
+            min-height: 200px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        
+        .error {
+            color: #dc3545;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #dc3545;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+    
+
+
+    
+        Loading...
+    
+    
+    
+        const contentDiv = document.getElementById('confluence-content');
+        
+        async function fetchConfluenceContent() {
+            try {
+                const response = await fetch('/.netlify/functions/confluence-content');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                if (data.content) {
+                    contentDiv.innerHTML = data.content;
+                    contentDiv.classList.remove('loading');
+                    // Update page title if available
+                    if (data.title) {
+                        document.title = data.title;
+                    }
+                } else {
+                    throw new Error('No content received');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                contentDiv.innerHTML = `
+                    
+                        Error loading content
+                        ${error.message}
+                    
+                `;
+                contentDiv.classList.remove('loading');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchConfluenceContent);
+    
+
+
+```

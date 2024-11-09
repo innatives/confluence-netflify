@@ -2,15 +2,15 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 exports.handler = async function(event, context) {
-  // Add specific Webflow domain to CORS headers
+  // Set CORS headers to allow all origins for testing
   const headers = {
-    'Access-Control-Allow-Origin': 'https://project-starter-v12-e3354b551a67f9f409a.webflow.io',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Content-Type': 'application/json'
   };
 
-  // Handle preflight OPTIONS request
+  // Handle OPTIONS preflight request
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -19,18 +19,23 @@ exports.handler = async function(event, context) {
     };
   }
 
-  if (event.httpMethod !== 'GET') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
-    };
-  }
-
   try {
+    // First, test if the function is being called
+    console.log('Function called');
+    console.log('Environment variables:', {
+      domain: process.env.CONFLUENCE_DOMAIN ? 'Set' : 'Not set',
+      email: process.env.CONFLUENCE_EMAIL ? 'Set' : 'Not set',
+      token: process.env.CONFLUENCE_API_TOKEN ? 'Set' : 'Not set',
+      pageId: process.env.CONFLUENCE_PAGE_ID ? 'Set' : 'Not set'
+    });
+
+    // Basic authentication
     const auth = Buffer.from(
       `${process.env.CONFLUENCE_EMAIL}:${process.env.CONFLUENCE_API_TOKEN}`
     ).toString('base64');
+
+    // Log the URL being called (remove sensitive info)
+    console.log('Calling Confluence API at domain:', process.env.CONFLUENCE_DOMAIN);
 
     const response = await axios({
       method: 'get',
@@ -41,50 +46,33 @@ exports.handler = async function(event, context) {
       }
     });
 
-    const content = transformContentForWebflow(response.data.body.storage.value);
+    // Log successful response
+    console.log('Confluence API response received');
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        content: content
+        content: response.data.body.storage.value
       })
     };
+
   } catch (error) {
-    console.error('Error:', error);
+    // Detailed error logging
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+
     return {
-      statusCode: error.response?.status || 500,
+      statusCode: 500,
       headers,
       body: JSON.stringify({
         error: 'Error fetching content',
-        message: error.message
+        message: error.message,
+        details: error.response?.data || 'No additional details available'
       })
     };
   }
 };
-
-function transformContentForWebflow(html) {
-  const $ = cheerio.load(html);
-  
-  // Add classes to headings
-  $('h1').addClass('confluence-h1');
-  $('h2').addClass('confluence-h2');
-  $('h3').addClass('confluence-h3');
-  $('h4').addClass('confluence-h4');
-  
-  // Add classes to text elements
-  $('p').addClass('confluence-paragraph');
-  $('ul').addClass('confluence-list');
-  $('ol').addClass('confluence-ordered-list');
-  $('li').addClass('confluence-list-item');
-  
-  // Add classes to tables
-  $('table').addClass('confluence-table');
-  $('th').addClass('confluence-table-header');
-  $('td').addClass('confluence-table-cell');
-  
-  // Add classes to links and images
-  $('a').addClass('confluence-link');
-  $('img').addClass('confluence-image');
-  
-  return `<div class="confluence-content-wrapper">${$.html()}</div>`;
